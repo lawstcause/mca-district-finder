@@ -126,13 +126,11 @@ export default function App() {
     setSearching(true);
     setError("");
     try {
-      const results = await geocodeAddress(
-        /denver|aurora|80238|80010|co\b/i.test(q) ? q : `${q}, Denver CO`
-      );
-      const local = results.filter(
-        (r) => r.lat > 39.74 && r.lat < 39.82 && r.lng > -104.91 && r.lng < -104.84
-      );
-      setSuggestions(local.length ? local : results.slice(0, 5));
+      const results = await geocodeAddress(q);
+      setSuggestions(results);
+      if (!results.length) {
+        setError("No Denver property record for that address. Try tapping the map.");
+      }
     } catch {
       setError("Could not look up that address.");
     } finally {
@@ -180,7 +178,7 @@ export default function App() {
                 id="addr"
                 value={query}
                 onChange={(e) => onQueryChange(e.target.value)}
-                placeholder="e.g. 8054 E 28th Ave"
+                placeholder="e.g. 5000 N Beeler St"
                 autoComplete="street-address"
               />
               <button type="submit" className="primary">
@@ -209,7 +207,7 @@ export default function App() {
               >
                 Use my location
               </button>
-              <span className="hint">or tap the map</span>
+              <span className="hint">or tap the map · Denver property records</span>
             </div>
             {suggestions.length > 0 && (
               <ul className="suggest">

@@ -1,5 +1,5 @@
 import { readFileSync } from "fs";
-import { findDistrict } from "./geo.js";
+import { findDistrict, parseAddress } from "./geo.js";
 
 const fc = JSON.parse(readFileSync(new URL("../public/data/districts.geojson", import.meta.url), "utf8"));
 const DISTRICTS = fc.features
@@ -37,6 +37,26 @@ for (const [label, lng, lat, expected] of cases) {
     console.error(`FAIL ${label}: expected ${expected}, got ${got}`);
   } else {
     console.log(`ok   ${label} → ${got ?? "outside"}`);
+  }
+}
+
+const parseCases = [
+  ["5000 N Beeler St", { number: "5000", street: "Beeler", dir: "N" }],
+  ["9345 E 56th Ave, Denver CO 80238", { number: "9345", street: "56th", dir: "E" }],
+  ["11001 E 51 Ave", { number: "11001", street: "51st", dir: "E" }],
+  ["4939 N Central Park Blvd", { number: "4939", street: "Central Park", dir: "N" }],
+  ["4893 N Xenia St Unit 101", { number: "4893", street: "Xenia", unit: "101" }],
+  ["8054 E 28th Ave", { number: "8054", street: "28th", dir: "E" }],
+];
+
+for (const [input, expect] of parseCases) {
+  const got = parseAddress(input);
+  const bits = Object.entries(expect).filter(([k, v]) => String(got[k] || "") !== String(v));
+  if (bits.length) {
+    failed += 1;
+    console.error(`FAIL parse ${input}: ${JSON.stringify(got)}`);
+  } else {
+    console.log(`ok   parse ${input} → ${got.number} ${got.dir || ""} ${got.street}`.replace(/ +/g, " "));
   }
 }
 
