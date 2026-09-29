@@ -12,6 +12,95 @@ import L from "leaflet";
 import { MAP_CENTER, MAP_ZOOM, MCA } from "./data.js";
 import { centroidOf, findDistrict, geocodeAddress } from "./geo.js";
 
+function OfficialMap({ src }) {
+  const frameRef = useRef(null);
+  const canvasRef = useRef(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    const frame = frameRef.current;
+    const canvas = canvasRef.current;
+    if (!frame || !canvas) return;
+    let cancelled = false;
+    let renderTask = null;
+    let loadingTask = null;
+
+    const paint = async (cssWidth) => {
+      const pdfjs = await import("pdfjs-dist");
+      const workerSrc = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
+      pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
+      if (cancelled) return;
+      loadingTask = pdfjs.getDocument(src);
+      const pdf = await loadingTask.promise;
+      if (cancelled) return;
+      const page = await pdf.getPage(1);
+      if (cancelled) return;
+      const base = page.getViewport({ scale: 1 });
+      const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+      const viewport = page.getViewport({
+        scale: (cssWidth * pixelRatio) / base.width,
+      });
+      canvas.width = Math.floor(viewport.width);
+      canvas.height = Math.floor(viewport.height);
+      const ctx = canvas.getContext("2d", { alpha: false });
+      if (!ctx) throw new Error("Could not draw the district map.");
+      if (renderTask) renderTask.cancel();
+      renderTask = page.render({ canvasContext: ctx, viewport });
+      await renderTask.promise;
+    };
+
+    const start = (cssWidth) => {
+      paint(cssWidth).catch((err) => {
+        if (cancelled || err?.name === "RenderingCancelledException") return;
+        setFailed(true);
+      });
+    };
+
+    const width = Math.floor(frame.clientWidth);
+    let observer;
+    if (width > 0) start(width);
+    else {
+      observer = new ResizeObserver((entries) => {
+        const next = Math.floor(entries[0].contentRect.width);
+        if (next <= 0) return;
+        observer.disconnect();
+        start(next);
+      });
+      observer.observe(frame);
+    }
+
+    return () => {
+      cancelled = true;
+      observer?.disconnect();
+      renderTask?.cancel();
+      loadingTask?.destroy();
+    };
+  }, [src]);
+
+  if (failed) {
+    return (
+      <a href={src} target="_blank" rel="noreferrer">
+        Open the district map
+      </a>
+    );
+  }
+
+  return (
+    <>
+      <div className="map-pdf" ref={frameRef}>
+        <canvas
+          ref={canvasRef}
+          role="img"
+          aria-label="MCA Central Park neighborhood map with 11 delegate districts"
+        />
+      </div>
+      <a className="map-pdf-open" href={src} target="_blank" rel="noreferrer">
+        Open full-size PDF
+      </a>
+    </>
+  );
+}
+
 function FitDistricts({ geo }) {
   const map = useMap();
   const done = useRef(false);
@@ -384,10 +473,7 @@ export default function App() {
         <aside className="sidebar sidebar-list">
           <section className="source-map">
             <h3>Official district map</h3>
-            <img
-              src={`${import.meta.env.BASE_URL}maps/mca-district-key.jpg?v=4`}
-              alt="MCA Central Park neighborhood map with 11 delegate districts"
-            />
+            <OfficialMap src={`${import.meta.env.BASE_URL}maps/mca-district-key.pdf`} />
           </section>
           <section className="district-list">
             <h3>11 delegate districts</h3>

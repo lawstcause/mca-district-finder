@@ -3,6 +3,7 @@ dist
 .DS_Store
 public/maps/*.png
 public/maps/*.pdf
+!public/maps/mca-district-key.pdf
 public/maps/overlay-*
 public/maps/mca-delegates*
 public/maps/mca-neighborhood*
